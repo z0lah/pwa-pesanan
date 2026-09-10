@@ -16,15 +16,15 @@
 <script src="js/register-sw.js"></script>
 </head>
 <body>
- 
+
 <div class="header-bar">
     <h1>📦 Kelola Barang</h1>
     <div class="subtitle">Daftar menu yang bisa dipesan</div>
 </div>
- 
+
 <div class="container">
     <a href="index.html" class="back-link">← Kembali ke Daftar Pesanan</a>
- 
+
     <div class="card">
         <div class="card-title" id="formTitle">Tambah Barang Baru</div>
         <form id="formBarang">
@@ -40,32 +40,32 @@
             <button type="button" class="btn" style="background:#95a5a6; display:none;" id="btnBatalEdit" onclick="batalEdit()">Batal</button>
         </form>
     </div>
- 
+
     <div class="card">
         <div class="card-title">Daftar Barang</div>
         <div id="daftarBarang">Memuat...</div>
     </div>
 </div>
- 
+
 <script>
 let api = null;
 let editingId = null;
- 
+
 async function main() {
     await initDatabase();
     api = getAutoSaveDbApi();
     render();
 }
- 
+
 function render() {
     const list = api.getBarangList(false);
     const container = document.getElementById('daftarBarang');
- 
+
     if (list.length === 0) {
         container.innerHTML = '<div class="empty-state">Belum ada barang. Tambahkan di atas.</div>';
         return;
     }
- 
+
     container.innerHTML = list.map(b => `
         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #eee;">
             <div>
@@ -85,14 +85,14 @@ function render() {
         </div>
     `).join('');
 }
- 
+
 document.getElementById('formBarang').addEventListener('submit', async (e) => {
     e.preventDefault();
     const nama = document.getElementById('namaBarang').value.trim();
     const harga = parseFloat(document.getElementById('hargaBarang').value);
- 
+
     if (!nama || isNaN(harga)) return;
- 
+
     if (editingId !== null) {
         // Mode edit: pertahankan status available yang sudah ada
         const existing = api.getBarangList(false).find(x => x.id === editingId);
@@ -102,26 +102,26 @@ document.getElementById('formBarang').addEventListener('submit', async (e) => {
         await api.addBarang(nama, harga, 1);
         document.getElementById('formBarang').reset();
     }
- 
+
     render();
 });
- 
+
 function mulaiEdit(id) {
     const b = api.getBarangList(false).find(x => x.id === id);
     if (!b) return;
- 
+
     editingId = id;
     document.getElementById('namaBarang').value = b.nama;
     document.getElementById('hargaBarang').value = b.harga;
- 
+
     document.getElementById('formTitle').textContent = 'Edit Barang: ' + b.nama;
     document.getElementById('btnSubmitBarang').textContent = '💾 Simpan Perubahan';
     document.getElementById('btnBatalEdit').style.display = 'inline-block';
- 
+
     // Scroll ke form supaya terlihat, terutama kalau barangnya di bawah
     document.getElementById('formBarang').scrollIntoView({ behavior: 'smooth' });
 }
- 
+
 function batalEdit() {
     editingId = null;
     document.getElementById('formBarang').reset();
@@ -129,13 +129,13 @@ function batalEdit() {
     document.getElementById('btnSubmitBarang').textContent = '+ Tambah Barang';
     document.getElementById('btnBatalEdit').style.display = 'none';
 }
- 
+
 async function toggleAvailable(id, currentAvailable) {
     const b = api.getBarangList(false).find(x => x.id === id);
     await api.updateBarang(id, b.nama, b.harga, currentAvailable ? 0 : 1);
     render();
 }
- 
+
 async function hapusBarang(id) {
     if (!confirm('Hapus barang ini? (Pesanan lama yang sudah ada tidak akan berubah)')) return;
     await api.deleteBarang(id);
@@ -144,9 +144,9 @@ async function hapusBarang(id) {
     }
     render();
 }
- 
+
 main();
 </script>
- 
+
 </body>
 </html>

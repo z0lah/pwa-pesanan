@@ -1,15 +1,17 @@
 /**
  * sw.js
  * Service Worker untuk caching semua file aplikasi, supaya setelah
+ * pertama kali dibuka (butuh internet), selanjutnya bisa dipakai
+ * 100% offline.
  *
  * PENTING: Kalau nanti ada update kode (tambah fitur baru dll),
  * naikkan CACHE_VERSION di bawah ini, supaya browser tahu harus
  * download ulang file-file yang berubah.
  */
- 
-const CACHE_VERSION = 'v6';
+
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
- 
+
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -24,12 +26,13 @@ const ASSETS_TO_CACHE = [
     './js/storage.js',
     './js/app.js',
     './js/receipt.js',
+    './js/register-sw.js',
+    './js/vendor/sql-wasm.js',
+    './js/vendor/sql-wasm.wasm',
     './icons/icon-192.png',
-    './icons/icon-512.png',
-    'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.wasm'
+    './icons/icon-512.png'
 ];
- 
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
@@ -46,7 +49,7 @@ self.addEventListener('install', (event) => {
         }).then(() => self.skipWaiting())
     );
 });
- 
+
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -58,7 +61,7 @@ self.addEventListener('activate', (event) => {
         }).then(() => self.clients.claim())
     );
 });
- 
+
 self.addEventListener('fetch', (event) => {
     // Strategi: cache-first, fallback ke network kalau belum ada di cache.
     // Kalau network juga gagal (offline & belum ke-cache), biarkan error normal.

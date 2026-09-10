@@ -16,26 +16,26 @@
 <script src="js/register-sw.js"></script>
 </head>
 <body>
- 
+
 <div class="header-bar">
     <h1>🍽️ Barokah Rasa</h1>
     <div class="subtitle">Manajemen Pesanan</div>
 </div>
- 
+
 <div class="container">
- 
+
     <div class="card">
         <div class="card-title">Ringkasan Hari Ini</div>
         <div id="ringkasan" class="muted">Memuat...</div>
     </div>
- 
+
     <div id="backupReminder"></div>
- 
+
     <div class="card">
         <div class="card-title">Daftar Pesanan</div>
         <div id="daftarPesanan">Memuat...</div>
     </div>
- 
+
     <div style="text-align: center; margin-top: 20px;">
         <a href="barang.html" class="muted" style="text-decoration: underline;">📦 Kelola Daftar Barang</a>
         &nbsp;&middot;&nbsp;
@@ -47,35 +47,35 @@
             🔄 Muat Ulang Versi Terbaru
         </button>
     </div>
- 
+
 </div>
- 
+
 <a href="buat.html" class="fab" title="Buat Pesanan Baru">+</a>
- 
+
 <script>
 let api = null;
- 
+
 async function main() {
     await initDatabase();
     api = getAutoSaveDbApi();
     render();
 }
- 
+
 function render() {
     renderRingkasan();
     renderDaftarPesanan();
     renderBackupReminder();
 }
- 
+
 function renderBackupReminder() {
     const el = document.getElementById('backupReminder');
     const last = localStorage.getItem('lastBackupTimestamp');
- 
+
     let daysAgo = null;
     if (last) {
         daysAgo = Math.floor((Date.now() - parseInt(last)) / (1000 * 60 * 60 * 24));
     }
- 
+
     if (!last) {
         el.innerHTML = `
             <div class="alert alert-warning">
@@ -92,24 +92,24 @@ function renderBackupReminder() {
         el.innerHTML = '';
     }
 }
- 
+
 function renderRingkasan() {
     const r = api.getRingkasanHariIni();
     document.getElementById('ringkasan').innerHTML =
         `<strong>${r.jumlah_pesanan}</strong> pesanan hari ini &middot; ` +
         `Total: <strong style="color:#27ae60;">Rp ${r.total_pemasukan.toLocaleString('id-ID')}</strong>`;
 }
- 
+
 function badgeClass(status) {
     if (status === 'Disiapkan') return 'badge-disiapkan';
     if (status === 'Siap Diambil') return 'badge-siap';
     return 'badge-diambil';
 }
- 
+
 function renderDaftarPesanan() {
     const list = api.getPesananList();
     const container = document.getElementById('daftarPesanan');
- 
+
     if (list.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -118,7 +118,7 @@ function renderDaftarPesanan() {
             </div>`;
         return;
     }
- 
+
     container.innerHTML = list.map(p => `
         <a href="detail.html?id=${p.id}" class="pesanan-list-item">
             <div style="display:flex; justify-content:space-between; align-items:start;">
@@ -134,9 +134,9 @@ function renderDaftarPesanan() {
         </a>
     `).join('');
 }
- 
+
 main();
 </script>
- 
+
 </body>
 </html>
