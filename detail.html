@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detail Pesanan</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="js/db-core.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script src="js/receipt.js"></script>
+</head>
+<body>
+
+<div class="header-bar">
+    <h1 id="pageTitle">Pesanan</h1>
+    <div class="subtitle" id="pageSubtitle"></div>
+</div>
+
+<div class="container">
+    <a href="index.html" class="back-link">← Kembali ke Daftar Pesanan</a>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+            <span id="statusBadge" class="badge"></span>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a id="btnEdit" href="#" class="btn btn-warning">✏️ Edit</a>
+                <button id="btnPrint" class="btn" style="background: #9b59b6;" onclick="doPrint()">🖨️ Print</button>
+                <button class="btn btn-success" onclick="shareWhatsApp()">📱 WhatsApp</button>
+                <button class="btn btn-danger" onclick="doDelete()">🗑️ Hapus</button>
+            </div>
+        </div>
+
+        <div id="printStatus" style="display: none; margin-bottom: 15px;"></div>
+
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+            <div style="font-size: 14px; color: #7f8c8d; margin-bottom: 5px;">Nama Pemesan</div>
+            <div style="font-size: 20px; font-weight: bold;" id="namaPemesan">-</div>
+        </div>
+
+        <h3 style="margin-bottom: 15px;">Item Pesanan</h3>
+        <div style="overflow-x: auto; margin-bottom: 20px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Barang</th>
+                        <th>Harga</th>
+                        <th>Jumlah</th>
+                        <th class="text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsTableBody"></tbody>
+                <tfoot>
+                    <tr style="background: #f8f9fa; font-weight: bold;">
+                        <td colspan="3" class="text-right">TOTAL</td>
+                        <td class="text-right" style="color: #27ae60; font-size: 18px;" id="totalAmount">-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <h3 style="margin-bottom: 15px;">Update Status Pesanan</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-warning" id="btnStatusDisiapkan" onclick="updateStatus('Disiapkan')">🔄 Sedang Disiapkan</button>
+            <button class="btn" style="background: #3498db;" id="btnStatusSiap" onclick="updateStatus('Siap Diambil')">✅ Siap Diambil</button>
+            <button class="btn btn-success" id="btnStatusDiambil" onclick="updateStatus('Diambil')">🎉 Sudah Diambil</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Timeline Status</div>
+        <div class="timeline" id="timeline"></div>
+    </div>
+</div>
+
+<script>
+let api = null;
+let pesananId = null;
+let currentPesanan = null;
+
+function getPesananIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return parseInt(params.get('id'));
+}
+
+async function main() {
+    pesananId = getPesananIdFromUrl();
+    if (!pesananId) {
+        alert('Pesanan tidak ditemukan');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    await initDatabase();
+    api = getAutoSaveDbApi();
+
+    document.getElementById('btnEdit').href = 'edit.html?id=' + pesananId;
+
+    checkBluetoothSupport();
+    render();
+}
+
+function checkBluetoothSupport() {
+    if (!navigator.bluetooth) {
+        const btn = document.getElementById('btnPrint');
+        btn.style.opacity = '0.6';
+        btn.title = '⚠️ Browser tidak support Web Bluetooth';
+
+        showPrintStatus(
+            '⚠️ <strong>Browser Anda tidak support Web Bluetooth.</strong><br>' +
+            '<small>Gunakan Chrome Android versi terbaru untuk mencetak struk.</small>',
+            'warning'
+        );
+    }
+}
+
+function badgeClass(status) {
+    if (status === 'Disiapkan') return 'badge-disiapkan';
+    if (status === 'Siap Diambil') return 'badge-siap';
+    return 'badge-diambil';
+}
+
+function render() {
+    const detail = api.getPesananDetail(pesananId);
+    if (!detail) {
+        alert('Pesanan tidak ditemukan');
+        window.location.href = 'index.html';
+        return;
+    }
+    currentPesanan = detail;
+
+    const { pesanan, items } = detail;
+
+    document.getElementById('pageTitle').textContent = 'Pesanan #' + pesanan.id;
+    document.getElementById('pageSubtitle').textContent = pesanan.created_at;
+    document.getElementById('namaPemesan').textContent = '👤 ' + pesanan.nama_pemesan;
+
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = pesanan.status;
+    badge.className = 'badge ' + badgeClass(pesanan.status);
+
+    document.getElementById('itemsTableBody').innerHTML = items.map(item => `
+        <tr>
+            <td>
+                ${item.nama_barang}
+                ${item.note ? `<br><small style="color:#7f8c8d; font-style:italic;">📝 ${item.note}</small>` : ''}
+            </td>
+            <td>Rp ${item.harga.toLocaleString('id-ID')}</td>
+            <td>${item.jumlah}</td>
+            <td class="text-right"><strong>Rp ${item.subtotal.toLocaleString('id-ID')}</strong></td>
+        </tr>
+    `).join('');
+
+    document.getElementById('totalAmount').textContent = 'Rp ' + pesanan.total.toLocaleString('id-ID');
+
+    document.getElementById('btnStatusDisiapkan').disabled = pesanan.status === 'Disiapkan';
+    document.getElementById('btnStatusSiap').disabled = (pesanan.status === 'Siap Diambil' || pesanan.status === 'Diambil');
+    document.getElementById('btnStatusDiambil').disabled = pesanan.status === 'Diambil';
+
+    renderTimeline(pesanan.status, pesanan.created_at);
+}
+
+function renderTimeline(status, createdAt) {
+    const step2Done = (status === 'Siap Diambil' || status === 'Diambil');
+    const step3Done = (status === 'Diambil');
+
+    document.getElementById('timeline').innerHTML = `
+        <div class="timeline-item completed">
+            <div class="timeline-marker">1</div>
+            <div class="timeline-content">
+                <div class="timeline-title">Pesanan Diterima</div>
+                <div class="timeline-time">${createdAt}</div>
+            </div>
+        </div>
+        <div class="timeline-item ${step2Done ? 'completed' : ''}">
+            <div class="timeline-marker">2</div>
+            <div class="timeline-content">
+                <div class="timeline-title">Siap Diambil</div>
+                <div class="timeline-time">${step2Done ? 'Selesai' : 'Menunggu'}</div>
+            </div>
+        </div>
+        <div class="timeline-item ${step3Done ? 'completed' : ''}">
+            <div class="timeline-marker">3</div>
+            <div class="timeline-content">
+                <div class="timeline-title">Diambil</div>
+                <div class="timeline-time">${step3Done ? 'Selesai' : 'Menunggu'}</div>
+            </div>
+        </div>
+    `;
+}
+
+async function updateStatus(newStatus) {
+    if (!confirm(`Ubah status pesanan menjadi "${newStatus}"?`)) return;
+    await api.updateStatus(pesananId, newStatus);
+    render();
+}
+
+async function doDelete() {
+    if (!confirm('⚠️ YAKIN HAPUS PESANAN #' + pesananId + '?')) return;
+    if (!confirm('Konfirmasi sekali lagi?')) return;
+
+    await api.deletePesanan(pesananId);
+    alert('✅ Pesanan berhasil dihapus!');
+    window.location.href = 'index.html';
+}
+
+function showPrintStatus(message, type) {
+    const status = document.getElementById('printStatus');
+    status.style.display = 'block';
+    status.className = 'alert alert-' + type;
+    status.innerHTML = message;
+}
+
+async function doPrint() {
+    const btn = document.getElementById('btnPrint');
+    btn.disabled = true;
+    btn.textContent = '🖨️ Mencetak...';
+
+    try {
+        const receiptData = api.getReceiptData(pesananId);
+        const success = await printReceipt(receiptData, showPrintStatus);
+
+        if (success) {
+            setTimeout(() => {
+                document.getElementById('printStatus').style.display = 'none';
+            }, 3000);
+        }
+    } catch (error) {
+        showPrintStatus('❌ Error: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🖨️ Print';
+    }
+}
+
+function shareWhatsApp() {
+    const { pesanan, items } = currentPesanan;
+
+    let message = `*RINCIAN PESANAN #${pesanan.id}*\n\n`;
+    message += `👤 Nama: ${pesanan.nama_pemesan}\n`;
+    message += `📅 Tanggal: ${pesanan.created_at}\n`;
+    message += `📦 Status: ${pesanan.status}\n\n`;
+    message += `*DETAIL PESANAN:*\n`;
+    message += `━━━━━━━━━━━━━━━━━\n`;
+
+    items.forEach(item => {
+        message += `• ${item.nama_barang}\n`;
+        if (item.note) {
+            message += `  📝 ${item.note}\n`;
+        }
+        message += `  ${item.jumlah} × Rp ${item.harga.toLocaleString('id-ID')} = Rp ${item.subtotal.toLocaleString('id-ID')}\n\n`;
+    });
+
+    message += `━━━━━━━━━━━━━━━━━\n`;
+    message += `*TOTAL: Rp ${pesanan.total.toLocaleString('id-ID')}*`;
+
+    const encodedMsg = encodeURIComponent(message);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const whatsappURL = isMobile
+        ? `whatsapp://send?text=${encodedMsg}`
+        : `https://web.whatsapp.com/send?text=${encodedMsg}`;
+
+    window.open(whatsappURL, '_blank');
+}
+
+main();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buat Pesanan Baru</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="js/db-core.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</head>
+<body>
+
+<div class="header-bar">
+    <h1>🛒 Buat Pesanan Baru</h1>
+</div>
+
+<div class="container">
+    <a href="index.html" class="back-link">← Kembali ke Daftar Pesanan</a>
+
+    <div class="card">
+        <form id="pesananForm">
+            <div class="form-group">
+                <label for="namaPemesan">Nama Pemesan *</label>
+                <input type="text" id="namaPemesan" class="form-control" required>
+            </div>
+
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+
+            <h3 style="margin-bottom: 15px;">Item Pesanan</h3>
+            <div id="itemsContainer"></div>
+
+            <button type="button" class="btn mb-3" onclick="addItem()">+ Tambah Item</button>
+
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <h3 style="margin-bottom: 10px;">Total Pesanan</h3>
+                <div style="font-size: 32px; font-weight: bold; color: #27ae60;">
+                    Rp <span id="totalHarga">0</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-success" style="width: 100%;">💾 Simpan Pesanan</button>
+            <a href="index.html" class="btn" style="width: 100%; margin-top: 10px; background:#95a5a6;">Batal</a>
+        </form>
+    </div>
+
+    <div id="noBarangWarning" class="alert alert-warning" style="display:none;">
+        ⚠️ Belum ada barang di daftar menu. <a href="barang.html">Tambahkan barang dulu</a> sebelum membuat pesanan.
+    </div>
+</div>
+
+<script>
+let api = null;
+let barangList = [];
+
+async function main() {
+    await initDatabase();
+    api = getAutoSaveDbApi();
+    barangList = api.getBarangList(true);
+
+    if (barangList.length === 0) {
+        document.getElementById('noBarangWarning').style.display = 'block';
+        document.getElementById('pesananForm').style.display = 'none';
+    } else {
+        addItem();
+    }
+}
+
+function barangOptions() {
+    return barangList.map(b =>
+        `<option value="${b.id}" data-nama="${b.nama}" data-harga="${b.harga}">${b.nama} - Rp ${b.harga.toLocaleString('id-ID')}</option>`
+    ).join('');
+}
+
+function itemRowHTML() {
+    return `
+    <div class="item-row">
+        <button type="button" class="btn-remove" onclick="removeItem(this)">×</button>
+
+        <div class="form-group">
+            <label>Barang *</label>
+            <select class="form-control barang-select" onchange="updateHarga(this)" required>
+                <option value="">-- Pilih Barang --</option>
+                ${barangOptions()}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Harga (Rp) * <small style="color: #999;">- Bisa diubah</small></label>
+            <input type="number" class="form-control harga-input" step="0.01" required onchange="calculateSubtotal(this)">
+        </div>
+
+        <div class="form-group">
+            <label>Jumlah *</label>
+            <input type="number" class="form-control jumlah-input" min="1" value="1" required onchange="calculateSubtotal(this)">
+        </div>
+
+        <div class="form-group">
+            <label class="note-toggle">
+                <input type="checkbox" class="note-toggle-input" onchange="toggleNote(this)">
+                📝 Tambah Catatan (opsional)
+            </label>
+        </div>
+
+        <div class="note-container" style="display: none;">
+            <div class="form-group" style="margin-bottom:0;">
+                <input type="text" class="form-control note-input" placeholder="Contoh: Pedas, Tanpa sayur, Extra sambal...">
+            </div>
+        </div>
+
+        <div style="background: white; padding: 10px; border-radius: 5px; text-align: right; margin-top:10px;">
+            <strong>Subtotal: Rp <span class="subtotal">0</span></strong>
+        </div>
+    </div>`;
+}
+
+function addItem() {
+    document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', itemRowHTML());
+}
+
+function removeItem(btn) {
+    if (confirm('Hapus item ini?')) {
+        btn.closest('.item-row').remove();
+        calculateTotal();
+    }
+}
+
+function updateHarga(select) {
+    const option = select.options[select.selectedIndex];
+    const harga = option.getAttribute('data-harga') || 0;
+    const row = select.closest('.item-row');
+    const hargaInput = row.querySelector('.harga-input');
+    hargaInput.value = harga;
+    calculateSubtotal(hargaInput);
+}
+
+function calculateSubtotal(input) {
+    const row = input.closest('.item-row');
+    const harga = parseFloat(row.querySelector('.harga-input').value) || 0;
+    const jumlah = parseInt(row.querySelector('.jumlah-input').value) || 0;
+    const subtotal = harga * jumlah;
+
+    row.querySelector('.subtotal').textContent = subtotal.toLocaleString('id-ID');
+    calculateTotal();
+}
+
+function calculateTotal() {
+    let total = 0;
+    document.querySelectorAll('.item-row').forEach(row => {
+        const harga = parseFloat(row.querySelector('.harga-input').value) || 0;
+        const jumlah = parseInt(row.querySelector('.jumlah-input').value) || 0;
+        total += harga * jumlah;
+    });
+
+    document.getElementById('totalHarga').textContent = total.toLocaleString('id-ID');
+}
+
+function toggleNote(checkbox) {
+    const row = checkbox.closest('.item-row');
+    const noteContainer = row.querySelector('.note-container');
+
+    if (checkbox.checked) {
+        noteContainer.style.display = 'block';
+    } else {
+        noteContainer.style.display = 'none';
+        row.querySelector('.note-input').value = '';
+    }
+}
+
+document.getElementById('pesananForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const namaPemesan = document.getElementById('namaPemesan').value.trim();
+    const items = [];
+
+    document.querySelectorAll('.item-row').forEach(row => {
+        const select = row.querySelector('.barang-select');
+        const option = select.options[select.selectedIndex];
+        const barangId = select.value;
+        const namaBarang = option.getAttribute('data-nama');
+        const harga = parseFloat(row.querySelector('.harga-input').value);
+        const jumlah = parseInt(row.querySelector('.jumlah-input').value);
+        const subtotal = harga * jumlah;
+
+        const noteToggle = row.querySelector('.note-toggle-input');
+        const noteValue = noteToggle.checked ? row.querySelector('.note-input').value.trim() : null;
+
+        if (barangId) {
+            items.push({
+                barang_id: parseInt(barangId),
+                nama_barang: namaBarang,
+                harga: harga,
+                jumlah: jumlah,
+                subtotal: subtotal,
+                note: noteValue || null
+            });
+        }
+    });
+
+    if (items.length === 0) {
+        alert('Tambahkan minimal 1 item pesanan!');
+        return;
+    }
+
+    const pesananId = await api.createPesanan(namaPemesan, items);
+
+    window.location.href = 'detail.html?id=' + pesananId;
+});
+
+main();
+</script>
+
+</body>
+</html>
