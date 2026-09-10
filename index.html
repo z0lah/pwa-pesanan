@@ -4,72 +4,106 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Barokah Rasa - Pesanan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#667eea">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script src="js/db-core.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/app.js"></script>
+<script src="js/register-sw.js"></script>
 </head>
 <body>
-
+ 
 <div class="header-bar">
     <h1>🍽️ Barokah Rasa</h1>
     <div class="subtitle">Manajemen Pesanan</div>
 </div>
-
+ 
 <div class="container">
-
+ 
     <div class="card">
         <div class="card-title">Ringkasan Hari Ini</div>
         <div id="ringkasan" class="muted">Memuat...</div>
     </div>
-
+ 
+    <div id="backupReminder"></div>
+ 
     <div class="card">
         <div class="card-title">Daftar Pesanan</div>
         <div id="daftarPesanan">Memuat...</div>
     </div>
-
+ 
     <div style="text-align: center; margin-top: 20px;">
         <a href="barang.html" class="muted" style="text-decoration: underline;">📦 Kelola Daftar Barang</a>
         &nbsp;&middot;&nbsp;
         <a href="backup.html" class="muted" style="text-decoration: underline;">☁️ Backup Data</a>
     </div>
-
+ 
 </div>
-
+ 
 <a href="buat.html" class="fab" title="Buat Pesanan Baru">+</a>
-
+ 
 <script>
 let api = null;
-
+ 
 async function main() {
     await initDatabase();
     api = getAutoSaveDbApi();
     render();
 }
-
+ 
 function render() {
     renderRingkasan();
     renderDaftarPesanan();
+    renderBackupReminder();
 }
-
+ 
+function renderBackupReminder() {
+    const el = document.getElementById('backupReminder');
+    const last = localStorage.getItem('lastBackupTimestamp');
+ 
+    let daysAgo = null;
+    if (last) {
+        daysAgo = Math.floor((Date.now() - parseInt(last)) / (1000 * 60 * 60 * 24));
+    }
+ 
+    if (!last) {
+        el.innerHTML = `
+            <div class="alert alert-warning">
+                ⚠️ Anda belum pernah backup data.
+                <a href="backup.html" style="font-weight:bold;">Backup sekarang →</a>
+            </div>`;
+    } else if (daysAgo >= 3) {
+        el.innerHTML = `
+            <div class="alert alert-warning">
+                ⚠️ Sudah ${daysAgo} hari sejak backup terakhir.
+                <a href="backup.html" style="font-weight:bold;">Backup sekarang →</a>
+            </div>`;
+    } else {
+        el.innerHTML = '';
+    }
+}
+ 
 function renderRingkasan() {
     const r = api.getRingkasanHariIni();
     document.getElementById('ringkasan').innerHTML =
         `<strong>${r.jumlah_pesanan}</strong> pesanan hari ini &middot; ` +
         `Total: <strong style="color:#27ae60;">Rp ${r.total_pemasukan.toLocaleString('id-ID')}</strong>`;
 }
-
+ 
 function badgeClass(status) {
     if (status === 'Disiapkan') return 'badge-disiapkan';
     if (status === 'Siap Diambil') return 'badge-siap';
     return 'badge-diambil';
 }
-
+ 
 function renderDaftarPesanan() {
     const list = api.getPesananList();
     const container = document.getElementById('daftarPesanan');
-
+ 
     if (list.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -78,7 +112,7 @@ function renderDaftarPesanan() {
             </div>`;
         return;
     }
-
+ 
     container.innerHTML = list.map(p => `
         <a href="detail.html?id=${p.id}" class="pesanan-list-item">
             <div style="display:flex; justify-content:space-between; align-items:start;">
@@ -94,9 +128,9 @@ function renderDaftarPesanan() {
         </a>
     `).join('');
 }
-
+ 
 main();
 </script>
-
+ 
 </body>
 </html>

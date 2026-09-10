@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backup Data</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#667eea">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="js/db-core.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script src="js/register-sw.js"></script>
+</head>
+<body>
+ 
+<div class="header-bar">
+    <h1>☁️ Backup Data</h1>
+    <div class="subtitle">Export & Import database</div>
+</div>
+ 
+<div class="container">
+    <a href="index.html" class="back-link">← Kembali ke Daftar Pesanan</a>
+ 
+    <div class="card">
+        <div class="card-title">💾 Export Backup</div>
+        <p class="muted">
+            Simpan salinan seluruh data pesanan & barang sebagai file.
+            Setelah muncul menu share, pilih <strong>Google Drive</strong>
+            (atau tempat penyimpanan lain pilihan Anda).
+        </p>
+        <div id="lastBackupInfo" class="muted" style="margin-bottom: 12px;"></div>
+        <button class="btn btn-success" onclick="exportAndShare()" style="width: 100%;">
+            💾 Export & Bagikan
+        </button>
+        <div id="exportStatus" style="display:none; margin-top: 12px;"></div>
+    </div>
+ 
+    <div class="card">
+        <div class="card-title">📥 Import / Pulihkan Data</div>
+        <div class="alert alert-warning">
+            ⚠️ Proses ini akan <strong>MENGGANTI SEMUA data saat ini</strong>
+            dengan isi file backup yang dipilih. Data yang belum di-backup
+            akan hilang.
+        </div>
+        <input type="file" id="importFile" accept=".sqlite,.db" class="form-control" style="margin-bottom: 12px;">
+        <button class="btn btn-danger" onclick="doImport()" style="width: 100%;">
+            📥 Pulihkan dari File Backup
+        </button>
+        <div id="importStatus" style="display:none; margin-top: 12px;"></div>
+    </div>
+</div>
+ 
+<script>
+let api = null;
+ 
+const LAST_BACKUP_KEY = 'lastBackupTimestamp';
+ 
+async function main() {
+    await initDatabase();
+    api = getAutoSaveDbApi();
+    renderLastBackupInfo();
+}
+ 
+function renderLastBackupInfo() {
+    const el = document.getElementById('lastBackupInfo');
+    const last = localStorage.getItem(LAST_BACKUP_KEY);
+ 
+    if (!last) {
+        el.innerHTML = '⚠️ Anda belum pernah melakukan backup.';
+        el.style.color = '#e67e22';
+        return;
+    }
+ 
+    const lastDate = new Date(parseInt(last));
+    const daysAgo = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+ 
+    const formatted = lastDate.toLocaleString('id-ID', {
+        day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+ 
+    if (daysAgo >= 3) {
+        el.innerHTML = `⚠️ Backup terakhir: ${formatted} (${daysAgo} hari lalu) — sebaiknya backup lagi`;
+        el.style.color = '#e67e22';
+    } else {
+        el.innerHTML = `✅ Backup terakhir: ${formatted}`;
+        el.style.color = '#27ae60';
+    }
+}
+ 
+function recordBackupTime() {
+    localStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
+    renderLastBackupInfo();
+}
+ 
+function showStatus(elId, message, type) {
+    const el = document.getElementById(elId);
+    el.style.display = 'block';
+    el.className = 'alert alert-' + type;
+    el.innerHTML = message;
+}
+ 
+function backupFilename() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return `backup-pesanan-${dateStr}.sqlite`;
+}
+ 
+async function exportAndShare() {
+    try {
+        const blob = exportDatabaseAsFile();
+        const filename = backupFilename();
+        const file = new File([blob], filename, { type: 'application/x-sqlite3' });
+ 
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: 'Backup Pesanan',
+                    text: 'Backup database Barokah Rasa - ' + filename
+                });
+                recordBackupTime();
+                showStatus('exportStatus', '✅ Backup berhasil dibagikan!', 'success');
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    // User membatalkan share, tidak perlu dianggap error
+                    return;
+                }
+                throw err;
+            }
+        } else {
+            // Fallback: browser tidak support Web Share API dengan file
+            // (misal dibuka di desktop) -> download biasa
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+ 
+            recordBackupTime();
+            showStatus('exportStatus',
+                '✅ File backup ter-download: ' + filename +
+                '<br><small>Silakan pindahkan manual ke Google Drive.</small>',
+                'success');
+        }
+    } catch (err) {
+        showStatus('exportStatus', '❌ Gagal export: ' + err.message, 'danger');
+    }
+}
+ 
+async function doImport() {
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+ 
+    if (!file) {
+        showStatus('importStatus', '⚠️ Pilih file backup terlebih dahulu.', 'warning');
+        return;
+    }
+ 
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+ 
+        // Validasi: coba buka sebagai database & cek tabel yang diharapkan ada
+        let testDb;
+        try {
+            testDb = new SQLModule.Database(bytes);
+            const tables = testDb.exec(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pesanan','pesanan_item','barang')"
+            );
+            const tableCount = tables.length > 0 ? tables[0].values.length : 0;
+            testDb.close();
+ 
+            if (tableCount < 3) {
+                showStatus('importStatus', '❌ File ini bukan backup aplikasi Barokah Rasa yang valid.', 'danger');
+                return;
+            }
+        } catch (e) {
+            showStatus('importStatus', '❌ File rusak atau bukan file database yang valid.', 'danger');
+            return;
+        }
+ 
+        if (!confirm('⚠️ SEMUA data saat ini akan DIGANTI dengan isi file ini. Lanjutkan?')) {
+            return;
+        }
+        if (!confirm('Konfirmasi sekali lagi: data sekarang akan hilang & diganti data dari backup. Yakin?')) {
+            return;
+        }
+ 
+        db = new SQLModule.Database(bytes);
+        dbApi = createDbApi(db);
+        await persistDatabase();
+ 
+        showStatus('importStatus', '✅ Data berhasil dipulihkan! Mengarahkan ke Daftar Pesanan...', 'success');
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 1500);
+ 
+    } catch (err) {
+        showStatus('importStatus', '❌ Gagal memulihkan data: ' + err.message, 'danger');
+    }
+}
+ 
+main();
+</script>
+ 
+</body>
+</html>
