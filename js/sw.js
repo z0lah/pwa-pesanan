@@ -7,7 +7,7 @@
  * download ulang file-file yang berubah.
  */
  
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
  
 const ASSETS_TO_CACHE = [

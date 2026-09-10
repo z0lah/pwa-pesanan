@@ -9,6 +9,31 @@ let dbApi = null;
 let SQLModule = null;
 
 /**
+ * Kalau ada error tak tertangani (misal gagal load sql.js), tampilkan
+ * pesan jelas di atas halaman - supaya tidak terlihat seperti "form
+ * error tanpa sebab" (input yang seolah disabled/tidak merespon).
+ */
+function showGlobalError(message) {
+    let banner = document.getElementById('globalErrorBanner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'globalErrorBanner';
+        banner.style.cssText =
+            'position:fixed; top:0; left:0; right:0; background:#f8d7da; ' +
+            'color:#721c24; padding:12px 16px; font-size:13px; z-index:9999; ' +
+            'text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.15);';
+        document.body.prepend(banner);
+    }
+    banner.textContent = message;
+}
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled error:', event.reason);
+    const msg = (event.reason && event.reason.message) ? event.reason.message : String(event.reason);
+    showGlobalError('⚠️ Gagal memuat aplikasi: ' + msg + ' — coba tutup & buka lagi.');
+});
+
+/**
  * Panggil ini sekali di awal, sebelum halaman memakai dbApi.
  * Akan otomatis:
  * 1. Load sql.js (WASM)
@@ -18,7 +43,7 @@ let SQLModule = null;
  */
 async function initDatabase() {
     SQLModule = await initSqlJs({
-        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+        locateFile: file => `js/vendor/${file}`
     });
 
     const savedBytes = await loadDatabaseFromIndexedDB();
