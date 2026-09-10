@@ -112,45 +112,59 @@ function backupFilename() {
 }
  
 async function exportAndShare() {
+    let blob, filename, file;
+ 
     try {
-        const blob = exportDatabaseAsFile();
-        const filename = backupFilename();
-        const file = new File([blob], filename, { type: 'application/x-sqlite3' });
- 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: 'Backup Pesanan',
-                    text: 'Backup database Barokah Rasa - ' + filename
-                });
-                recordBackupTime();
-                showStatus('exportStatus', '✅ Backup berhasil dibagikan!', 'success');
-            } catch (err) {
-                if (err.name === 'AbortError') {
-                    // User membatalkan share, tidak perlu dianggap error
-                    return;
-                }
-                throw err;
-            }
-        } else {
-            // Fallback: browser tidak support Web Share API dengan file
-            // (misal dibuka di desktop) -> download biasa
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
- 
-            recordBackupTime();
-            showStatus('exportStatus',
-                '✅ File backup ter-download: ' + filename +
-                '<br><small>Silakan pindahkan manual ke Google Drive.</small>',
-                'success');
-        }
+        blob = exportDatabaseAsFile();
+        filename = backupFilename();
+        file = new File([blob], filename, { type: 'application/x-sqlite3' });
     } catch (err) {
-        showStatus('exportStatus', '❌ Gagal export: ' + err.message, 'danger');
+        showStatus('exportStatus', '❌ Gagal membuat file backup: ' + err.message, 'danger');
+        return;
+    }
+ 
+    // Coba pakai Web Share API dulu (kalau didukung)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+            await navigator.share({
+                files: [file],
+                title: 'Backup Pesanan',
+                text: 'Backup database - ' + filename
+            });
+            recordBackupTime();
+            showStatus('exportStatus', '✅ Backup berhasil dibagikan!', 'success');
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                // User sengaja membatalkan share, tidak dianggap error
+                return;
+            }
+            console.warn('Web Share gagal, fallback ke download:', err.name, err.message);
+        }
+    }
+ 
+    // Fallback: download file biasa (dipakai jika share API tidak
+    // didukung sama sekali, atau share API gagal)
+    try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+ 
+        recordBackupTime();
+        showStatus('exportStatus',
+            '✅ File backup ter-download: ' + filename +
+            '<br><small>Cek folder Download di HP, lalu pindahkan manual ke Google Drive ' +
+            '(buka app Files/Google Drive → upload dari folder Download).</small>',
+            'success');
+    } catch (err) {
+        showStatus('exportStatus',
+            '❌ Gagal export (' + err.name + '): ' + err.message,
+            'danger');
     }
 }
  
