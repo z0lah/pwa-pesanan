@@ -1,15 +1,13 @@
 /**
  * sw.js
  * Service Worker untuk caching semua file aplikasi, supaya setelah
- * pertama kali dibuka (butuh internet), selanjutnya bisa dipakai
- * 100% offline.
  *
  * PENTING: Kalau nanti ada update kode (tambah fitur baru dll),
  * naikkan CACHE_VERSION di bawah ini, supaya browser tahu harus
  * download ulang file-file yang berubah.
  */
  
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
  
 const ASSETS_TO_CACHE = [
