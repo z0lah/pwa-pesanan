@@ -9,7 +9,7 @@
  * download ulang file-file yang berubah.
  */
 
-const CACHE_VERSION = 'v9';
+const CACHE_VERSION = 'v8';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
 
 const ASSETS_TO_CACHE = [
@@ -49,7 +49,7 @@ self.addEventListener('install', (event) => {
         }).then(() => self.skipWaiting())
     );
 });
- 
+
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
@@ -63,9 +63,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Strategi: cache-first, fallback ke network kalau belum ada di cache.
-    // Kalau network juga gagal (offline & belum ke-cache), biarkan error normal.
+    // Untuk navigasi antar halaman (misal detail.html?id=5, edit.html?id=3),
+    // abaikan query string saat mencocokkan cache - karena halamannya statis
+    // sama persis, cuma datanya (dibaca dari IndexedDB) yang beda per id.
+    // Tanpa ini, "detail.html?id=5" dianggap TIDAK ADA di cache (yang
+    // tersimpan cuma "detail.html" polos), lalu coba ambil dari internet,
+    // gagal saat offline, dan Chrome menampilkan halaman error bawaannya.
     const isNavigation = event.request.mode === 'navigate';
+
     event.respondWith(
         caches.match(event.request, { ignoreSearch: isNavigation }).then((cachedResponse) => {
             if (cachedResponse) {
@@ -78,6 +83,9 @@ self.addEventListener('fetch', (event) => {
                 });
             }).catch(() => {
                 if (isNavigation) {
+                    // Upaya terakhir: kalau halaman spesifik ini benar-benar
+                    // tidak ada di cache, tampilkan halaman utama daripada
+                    // halaman error bawaan Chrome.
                     return caches.match('./index.html');
                 }
                 throw new Error('Offline dan resource belum ter-cache: ' + event.request.url);

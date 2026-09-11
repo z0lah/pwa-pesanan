@@ -24,6 +24,10 @@
 
 <div class="container">
 
+    <div id="offlineStatus" class="alert alert-info" style="font-size:13px;">
+        ⏳ Memeriksa kesiapan offline...
+    </div>
+
     <div class="card">
         <div class="card-title">Ringkasan Hari Ini</div>
         <div id="ringkasan" class="muted">Memuat...</div>
@@ -55,11 +59,53 @@
 <script>
 let api = null;
 
+async function checkOfflineReadiness() {
+    const statusEl = document.getElementById('offlineStatus');
+
+    if (!('serviceWorker' in navigator) || !('caches' in window)) {
+        statusEl.textContent = '⚠️ Browser ini mungkin tidak mendukung mode offline penuh.';
+        statusEl.className = 'alert alert-warning';
+        return;
+    }
+
+    try {
+        await navigator.serviceWorker.ready;
+    } catch (e) {
+        // lanjut cek cache saja walau ini gagal
+    }
+
+    const filesToCheck = [
+        'index.html', 'buat.html', 'edit.html', 'detail.html', 'barang.html', 'backup.html',
+        'js/vendor/sql-wasm.js', 'js/vendor/sql-wasm.wasm',
+        'js/app.js', 'js/db-core.js', 'js/storage.js', 'js/receipt.js', 'js/register-sw.js',
+        'css/style.css'
+    ];
+
+    let cachedCount = 0;
+    for (const file of filesToCheck) {
+        const match = await caches.match(file);
+        if (match) cachedCount++;
+    }
+
+    if (cachedCount === filesToCheck.length) {
+        statusEl.textContent = '✅ Aplikasi siap dipakai 100% offline.';
+        statusEl.className = 'alert alert-success';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+    } else {
+        statusEl.textContent =
+            `⏳ Sedang menyiapkan mode offline (${cachedCount}/${filesToCheck.length} file siap). ` +
+            `Tunggu beberapa detik dengan internet aktif, lalu buka ulang halaman ini sebelum mengaktifkan mode pesawat.`;
+        statusEl.className = 'alert alert-warning';
+    }
+}
+
 async function main() {
     await initDatabase();
     api = getAutoSaveDbApi();
     render();
 }
+
+checkOfflineReadiness();
 
 function render() {
     renderRingkasan();
