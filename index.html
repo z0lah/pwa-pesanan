@@ -62,40 +62,60 @@ let api = null;
 async function checkOfflineReadiness() {
     const statusEl = document.getElementById('offlineStatus');
 
-    if (!('serviceWorker' in navigator) || !('caches' in window)) {
-        statusEl.textContent = '⚠️ Browser ini mungkin tidak mendukung mode offline penuh.';
-        statusEl.className = 'alert alert-warning';
-        return;
-    }
-
     try {
-        await navigator.serviceWorker.ready;
-    } catch (e) {
-        // lanjut cek cache saja walau ini gagal
-    }
+        if (!('caches' in window)) {
+            statusEl.textContent = '⚠️ Browser ini tidak mendukung Cache API (mode offline tidak tersedia).';
+            statusEl.className = 'alert alert-warning';
+            return;
+        }
 
-    const filesToCheck = [
-        'index.html', 'buat.html', 'edit.html', 'detail.html', 'barang.html', 'backup.html',
-        'js/vendor/sql-wasm.js', 'js/vendor/sql-wasm.wasm',
-        'js/app.js', 'js/db-core.js', 'js/storage.js', 'js/receipt.js', 'js/register-sw.js',
-        'css/style.css'
-    ];
+        // Cek status Service Worker TANPA menunggu tanpa batas -
+        // getRegistrations() selalu selesai cepat, tidak seperti
+        // navigator.serviceWorker.ready yang bisa macet kalau SW
+        // tidak pernah aktif.
+        let swStateInfo = 'Service Worker tidak didukung browser ini';
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            if (regs.length === 0) {
+                swStateInfo = 'Service Worker belum terdaftar';
+            } else {
+                const reg = regs[0];
+                const state = reg.active ? 'aktif' : (reg.waiting ? 'menunggu' : (reg.installing ? 'sedang instal' : 'tidak diketahui'));
+                swStateInfo = 'Service Worker: ' + state;
+            }
+        }
 
-    let cachedCount = 0;
-    for (const file of filesToCheck) {
-        const match = await caches.match(file);
-        if (match) cachedCount++;
-    }
+        const filesToCheck = [
+            'index.html', 'buat.html', 'edit.html', 'detail.html', 'barang.html', 'backup.html',
+            'js/vendor/sql-wasm.js', 'js/vendor/sql-wasm.wasm',
+            'js/app.js', 'js/db-core.js', 'js/storage.js', 'js/receipt.js', 'js/register-sw.js',
+            'css/style.css'
+        ];
 
-    if (cachedCount === filesToCheck.length) {
-        statusEl.textContent = '✅ Aplikasi siap dipakai 100% offline.';
-        statusEl.className = 'alert alert-success';
-        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
-    } else {
-        statusEl.textContent =
-            `⏳ Sedang menyiapkan mode offline (${cachedCount}/${filesToCheck.length} file siap). ` +
-            `Tunggu beberapa detik dengan internet aktif, lalu buka ulang halaman ini sebelum mengaktifkan mode pesawat.`;
-        statusEl.className = 'alert alert-warning';
+        let cachedCount = 0;
+        const missing = [];
+        for (const file of filesToCheck) {
+            const match = await caches.match(file);
+            if (match) {
+                cachedCount++;
+            } else {
+                missing.push(file);
+            }
+        }
+
+        if (cachedCount === filesToCheck.length) {
+            statusEl.textContent = '✅ Aplikasi siap dipakai 100% offline.';
+            statusEl.className = 'alert alert-success';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+        } else {
+            statusEl.innerHTML =
+                `⚠️ Belum siap offline (${cachedCount}/${filesToCheck.length} file ter-cache).<br>` +
+                `<small>${swStateInfo}<br>Belum ke-cache: ${missing.join(', ')}</small>`;
+            statusEl.className = 'alert alert-warning';
+        }
+    } catch (err) {
+        statusEl.textContent = '❌ Gagal cek status: ' + err.message;
+        statusEl.className = 'alert alert-danger';
     }
 }
 
