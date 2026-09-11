@@ -9,7 +9,7 @@
  * download ulang file-file yang berubah.
  */
 
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
 
 const ASSETS_TO_CACHE = [
@@ -49,7 +49,7 @@ self.addEventListener('install', (event) => {
         }).then(() => self.skipWaiting())
     );
 });
-
+ 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((keys) => {
