@@ -9,7 +9,7 @@
  * download ulang file-file yang berubah.
  */
 
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
 
 const ASSETS_TO_CACHE = [
@@ -65,17 +65,22 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     // Strategi: cache-first, fallback ke network kalau belum ada di cache.
     // Kalau network juga gagal (offline & belum ke-cache), biarkan error normal.
+    const isNavigation = event.request.mode === 'navigate';
     event.respondWith(
-        caches.match(event.request).then((cachedResponse) => {
+        caches.match(event.request, { ignoreSearch: isNavigation }).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }
             return fetch(event.request).then((networkResponse) => {
-                // Simpan juga ke cache untuk pemakaian offline berikutnya
                 return caches.open(CACHE_NAME).then((cache) => {
                     cache.put(event.request, networkResponse.clone());
                     return networkResponse;
                 });
+            }).catch(() => {
+                if (isNavigation) {
+                    return caches.match('./index.html');
+                }
+                throw new Error('Offline dan resource belum ter-cache: ' + event.request.url);
             });
         })
     );
