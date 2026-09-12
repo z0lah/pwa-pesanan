@@ -1,16 +1,31 @@
-// Check Service Worker version
+/**
+ * register-sw.js
+ * Mendaftarkan Service Worker (sw.js) supaya aplikasi bisa dipakai
+ * offline setelah pertama kali dibuka.
+ *
+ * File ini otomatis "diam saja" (tidak error) kalau dibuka via
+ * file:// atau http biasa (bukan https/localhost), karena
+ * Service Worker memang cuma didukung di secure context.
+ */
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
             .then((reg) => {
                 console.log('Service Worker terdaftar:', reg.scope);
-                // Paksa cek update setiap kali halaman dibuka, jangan
                 reg.update();
             })
             .catch((err) => {
-                console.log('Service Worker tidak aktif di konteks ini:', err.message);
+                console.error('Gagal mendaftarkan Service Worker:', err);
+                // Tampilkan langsung ke layar - sebelumnya cuma console.log
+                // yang tidak bisa dilihat tanpa DevTools di HP.
+                if (typeof showGlobalError === 'function') {
+                    showGlobalError('❌ Gagal mendaftarkan Service Worker: ' + err.name + ' - ' + err.message);
+                } else {
+                    alert('❌ Gagal mendaftarkan Service Worker: ' + err.name + ' - ' + err.message);
+                }
             });
- 
+
         let alreadyReloaded = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (alreadyReloaded) return;
@@ -19,7 +34,7 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
- 
+
 /**
  * Tombol darurat: bersihkan HANYA cache aplikasi ini (Cache Storage +
  * Service Worker lama), TIDAK menyentuh IndexedDB (data pesanan tetap
