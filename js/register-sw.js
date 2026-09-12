@@ -13,7 +13,12 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
             .then((reg) => {
                 console.log('Service Worker terdaftar:', reg.scope);
-                reg.update();
+
+                // Cek update butuh internet - kalau offline, ini WAJAR gagal
+                // dan tidak perlu ditampilkan sebagai error ke pengguna.
+                reg.update().catch((err) => {
+                    console.log('Cek update dilewati (kemungkinan sedang offline):', err.message);
+                });
             })
             .catch((err) => {
                 console.error('Gagal mendaftarkan Service Worker:', err);
