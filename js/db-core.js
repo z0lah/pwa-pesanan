@@ -198,7 +198,7 @@ function createDbApi(db) {
     function getRingkasanHariIni() {
         const today = nowISOLocal().split(' ')[0]; // YYYY-MM-DD
         const rows = runQuery(
-            `SELECT * FROM pesanan WHERE created_at LIKE ? ORDER BY created_at DESC`,
+            `SELECT * FROM pesanan WHERE created_at LIKE ? ORDER BY created_at DESC, id DESC`,
             [today + '%']
         );
         const totalPemasukan = rows.reduce((sum, p) => sum + p.total, 0);

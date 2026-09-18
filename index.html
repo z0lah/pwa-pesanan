@@ -36,11 +36,13 @@
     <div id="backupReminder"></div>
 
     <div class="card">
-        <div class="card-title">Daftar Pesanan</div>
+        <div class="card-title">Pesanan Hari Ini</div>
         <div id="daftarPesanan">Memuat...</div>
     </div>
 
     <div style="text-align: center; margin-top: 20px;">
+        <a href="riwayat.html" class="muted" style="text-decoration: underline;">📜 Riwayat Semua Pesanan</a>
+        &nbsp;&middot;&nbsp;
         <a href="barang.html" class="muted" style="text-decoration: underline;">📦 Kelola Daftar Barang</a>
         &nbsp;&middot;&nbsp;
         <a href="backup.html" class="muted" style="text-decoration: underline;">☁️ Backup Data</a>
@@ -86,7 +88,7 @@ async function checkOfflineReadiness() {
         }
 
         const filesToCheck = [
-            'index.html', 'buat.html', 'edit.html', 'detail.html', 'barang.html', 'backup.html',
+            'index.html', 'buat.html', 'edit.html', 'detail.html', 'barang.html', 'backup.html', 'riwayat.html',
             'js/vendor/sql-wasm.js', 'js/vendor/sql-wasm.wasm',
             'js/app.js', 'js/db-core.js', 'js/storage.js', 'js/receipt.js', 'js/register-sw.js',
             'css/style.css'
@@ -128,8 +130,9 @@ async function main() {
 checkOfflineReadiness();
 
 function render() {
-    renderRingkasan();
-    renderDaftarPesanan();
+    const r = api.getRingkasanHariIni();
+    renderRingkasan(r);
+    renderDaftarPesanan(r.pesanan);
     renderBackupReminder();
 }
 
@@ -159,8 +162,7 @@ function renderBackupReminder() {
     }
 }
 
-function renderRingkasan() {
-    const r = api.getRingkasanHariIni();
+function renderRingkasan(r) {
     document.getElementById('ringkasan').innerHTML =
         `<strong>${r.jumlah_pesanan}</strong> pesanan hari ini &middot; ` +
         `Total: <strong style="color:#27ae60;">Rp ${r.total_pemasukan.toLocaleString('id-ID')}</strong>`;
@@ -172,14 +174,13 @@ function badgeClass(status) {
     return 'badge-diambil';
 }
 
-function renderDaftarPesanan() {
-    const list = api.getPesananList();
+function renderDaftarPesanan(list) {
     const container = document.getElementById('daftarPesanan');
 
     if (list.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
-                Belum ada pesanan.<br>
+                Belum ada pesanan hari ini.<br>
                 Tekan tombol + untuk membuat pesanan baru.
             </div>`;
         return;

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Riwayat Pesanan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#667eea">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/vendor/sql-wasm.js"></script>
+<script src="js/db-core.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+<script src="js/register-sw.js"></script>
+</head>
+<body>
+
+<div class="header-bar">
+    <h1>📜 Riwayat Pesanan</h1>
+    <div class="subtitle">Semua pesanan dari awal</div>
+</div>
+
+<div class="container">
+    <a href="index.html" class="back-link">← Kembali ke Halaman Utama</a>
+
+    <div class="card">
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Cari nama pemesan</label>
+            <input type="text" id="cariNama" class="form-control" placeholder="Ketik nama untuk mencari...">
+        </div>
+    </div>
+
+    <div id="ringkasanTotal" class="muted" style="margin-bottom:12px;"></div>
+
+    <div id="riwayatList">Memuat...</div>
+</div>
+
+<script>
+let api = null;
+let semuaPesanan = [];
+
+async function main() {
+    await initDatabase();
+    api = getAutoSaveDbApi();
+    semuaPesanan = api.getPesananList();
+    render(semuaPesanan);
+}
+
+function badgeClass(status) {
+    if (status === 'Disiapkan') return 'badge-disiapkan';
+    if (status === 'Siap Diambil') return 'badge-siap';
+    return 'badge-diambil';
+}
+
+function formatTanggalHeading(tanggalStr) {
+    // tanggalStr format: YYYY-MM-DD
+    const [y, m, d] = tanggalStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function render(list) {
+    const totalEl = document.getElementById('ringkasanTotal');
+    const totalSemua = list.reduce((sum, p) => sum + p.total, 0);
+    totalEl.innerHTML = `${list.length} pesanan ditemukan &middot; Total: <strong style="color:#27ae60;">Rp ${totalSemua.toLocaleString('id-ID')}</strong>`;
+
+    const container = document.getElementById('riwayatList');
+
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div class="card">
+                <div class="empty-state">Tidak ada pesanan yang cocok.</div>
+            </div>`;
+        return;
+    }
+
+    // Kelompokkan per tanggal (list sudah terurut created_at DESC dari db-core)
+    const groups = [];
+    let currentDate = null;
+    let currentGroup = null;
+
+    list.forEach(p => {
+        const tgl = p.created_at.split(' ')[0];
+        if (tgl !== currentDate) {
+            currentDate = tgl;
+            currentGroup = { tanggal: tgl, items: [] };
+            groups.push(currentGroup);
+        }
+        currentGroup.items.push(p);
+    });
+
+    container.innerHTML = groups.map(group => `
+        <div class="card">
+            <div class="card-title" style="font-size:15px; color:#667eea;">
+                ${formatTanggalHeading(group.tanggal)}
+            </div>
+            ${group.items.map(p => `
+                <a href="detail.html?id=${p.id}" class="pesanan-list-item">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                        <div>
+                            <strong>#${p.id} - ${p.nama_pemesan}</strong><br>
+                            <span class="muted">${p.created_at.split(' ')[1] || ''}</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="badge ${badgeClass(p.status)}">${p.status}</span><br>
+                            <span style="color:#27ae60; font-weight:bold;">Rp ${p.total.toLocaleString('id-ID')}</span>
+                        </div>
+                    </div>
+                </a>
+            `).join('')}
+        </div>
+    `).join('');
+}
+
+document.getElementById('cariNama').addEventListener('input', (e) => {
+    const keyword = e.target.value.trim().toLowerCase();
+    if (!keyword) {
+        render(semuaPesanan);
+        return;
+    }
+    const filtered = semuaPesanan.filter(p => p.nama_pemesan.toLowerCase().includes(keyword));
+    render(filtered);
+});
+
+main();
+</script>
+
+</body>
+</html>

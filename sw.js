@@ -9,7 +9,7 @@
  * download ulang file-file yang berubah.
  */
 
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v12';
 const CACHE_NAME = 'barokah-rasa-' + CACHE_VERSION;
 
 const ASSETS_TO_CACHE = [
@@ -20,6 +20,7 @@ const ASSETS_TO_CACHE = [
     './detail.html',
     './barang.html',
     './backup.html',
+    './riwayat.html',
     './manifest.json',
     './css/style.css',
     './js/db-core.js',
